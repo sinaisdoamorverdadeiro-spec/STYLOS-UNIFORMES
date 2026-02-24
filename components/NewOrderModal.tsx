@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useData, useAuth } from '../context/Store';
 import { Order, OrderStatus, PaymentMethod, OrderItem, Product, MovementType, OutputReason } from '../types';
 import { X, Plus, Trash2, Save } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface NewOrderModalProps {
   isOpen: boolean;
@@ -52,7 +53,7 @@ export const NewOrderModal = ({ isOpen, onClose }: NewOrderModalProps) => {
 
   const handleAddItem = () => {
     if (!selectedProduct || !size || !color || quantity <= 0) {
-      alert('Preencha o produto, tamanho, cor e quantidade.');
+      toast.warning('Preencha o produto, tamanho, cor e quantidade.');
       return;
     }
 
@@ -66,7 +67,7 @@ export const NewOrderModal = ({ isOpen, onClose }: NewOrderModalProps) => {
 
     // Check stock locally before adding to cart (optional but good UX)
     if (matchingVariant && matchingVariant.stock < quantity) {
-      alert(`Atenção: Estoque atual (${matchingVariant.stock}) é menor que a quantidade solicitada.`);
+      toast.warning(`Atenção: Estoque atual (${matchingVariant.stock}) é menor que a quantidade solicitada.`);
       // We allow adding but warn, or we could block. Let's allow but warn.
     }
 
@@ -89,10 +90,12 @@ export const NewOrderModal = ({ isOpen, onClose }: NewOrderModalProps) => {
     // Keep size/color or reset? Resetting is safer.
     setSize('');
     setColor('');
+    toast.success('Item adicionado ao pedido.');
   };
 
   const handleRemoveItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index));
+    toast.info('Item removido.');
   };
 
   const calculateTotal = () => {
@@ -109,12 +112,12 @@ export const NewOrderModal = ({ isOpen, onClose }: NewOrderModalProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!clientName || !deliveryDate || items.length === 0) {
-      alert('Preencha os campos obrigatórios e adicione pelo menos um item.');
+      toast.error('Preencha os campos obrigatórios e adicione pelo menos um item.');
       return;
     }
 
     if (!user) {
-      alert('Erro: Usuário não autenticado.');
+      toast.error('Erro: Usuário não autenticado.');
       return;
     }
 
@@ -154,7 +157,7 @@ export const NewOrderModal = ({ isOpen, onClose }: NewOrderModalProps) => {
     }
 
     if (stockErrors) {
-      alert('Alguns itens não puderam ter o estoque baixado (estoque insuficiente). O pedido será criado, mas verifique o estoque.');
+      toast.warning('Alguns itens não puderam ter o estoque baixado (estoque insuficiente). O pedido será criado, mas verifique o estoque.');
     }
 
     // 2. Create/Get Client
@@ -193,6 +196,7 @@ export const NewOrderModal = ({ isOpen, onClose }: NewOrderModalProps) => {
     };
 
     addOrder(newOrder);
+    toast.success('Pedido criado com sucesso!');
     onClose();
     
     // Reset form

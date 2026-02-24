@@ -312,6 +312,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { User, Product, Order, Client, Expense, Role, OrderStatus, StockMovement, MovementType } from '../types';
 import { USERS } from '../mockData';
 import { supabase } from '../services/supabase';
+import { toast } from 'sonner';
 
 interface AuthContextType {
   user: User | null;
@@ -389,7 +390,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
       setUser(foundUser);
       localStorage.setItem('stylos_user', JSON.stringify(foundUser));
     } else {
-      alert('Usuário não encontrado');
+      toast.error('Usuário não encontrado');
     }
   };
 
@@ -467,7 +468,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
 
         if (!product || !variant) return false;
         if (variant.stock < movementData.quantity) {
-            alert(`Estoque insuficiente! Disponível: ${variant.stock}`);
+            toast.error(`Estoque insuficiente! Disponível: ${variant.stock}`);
             return false;
         }
 
@@ -646,6 +647,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeVi
 ## 8. App.tsx
 ```typescript
 import React, { useState } from 'react';
+import { Toaster } from 'sonner';
 import { StoreProvider, useAuth } from './context/Store';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
@@ -663,11 +665,15 @@ import { USERS } from './mockData';
 
 const LoginScreen = () => {
   const { login } = useAuth();
-  const [email, setEmail] = useState('admin@stylos.com');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    login(email);
+    // Simple validation for demo purposes - in a real app, this would validate against a backend
+    if (email && password) {
+        login(email);
+    }
   };
 
   return (
@@ -675,7 +681,7 @@ const LoginScreen = () => {
       <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
         <div className="bg-blue-600 p-8 text-center">
           <h1 className="text-3xl font-bold text-white tracking-widest">STYLOS</h1>
-          <p className="text-blue-200 mt-2 text-sm">Gestão de Uniformes</p>
+          <p className="text-blue-200 mt-2 text-sm">Gestão Profissional de Uniformes</p>
         </div>
         <div className="p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -694,33 +700,25 @@ const LoginScreen = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
               <input 
                 type="password" 
-                value="123456"
-                readOnly
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                placeholder="••••••••"
+                required
               />
             </div>
             <button 
               type="submit" 
-              className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition"
+              className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition shadow-lg transform active:scale-95"
             >
-              ENTRAR
+              ACESSAR SISTEMA
             </button>
           </form>
-
-          <div className="mt-8">
-            <p className="text-xs text-center text-gray-400 mb-3 uppercase tracking-wide">Acesso Rápido (Demo)</p>
-            <div className="space-y-2">
-              {USERS.map(u => (
-                <button 
-                  key={u.id}
-                  onClick={() => setEmail(u.email)}
-                  className="w-full text-left text-xs px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded border border-gray-200 flex justify-between items-center"
-                >
-                  <span className="font-semibold text-gray-700">{u.role}</span>
-                  <span className="text-gray-500">{u.email}</span>
-                </button>
-              ))}
-            </div>
+          
+          <div className="mt-6 text-center">
+            <p className="text-xs text-gray-400">
+              Esqueceu sua senha? Entre em contato com o administrador.
+            </p>
           </div>
         </div>
       </div>
@@ -757,7 +755,12 @@ const AuthenticatedApp = () => {
 
 const Main = () => {
   const { user } = useAuth();
-  return user ? <AuthenticatedApp /> : <LoginScreen />;
+  return (
+    <>
+      <Toaster richColors position="top-right" />
+      {user ? <AuthenticatedApp /> : <LoginScreen />}
+    </>
+  );
 };
 
 export default function App() {
@@ -2579,6 +2582,7 @@ import React, { useState } from 'react';
 import { useData } from '../context/Store';
 import { Client } from '../types';
 import { Plus, Search, User, Building, MapPin, Phone, Mail, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export const Clients = () => {
   const { clients, addClient } = useData();
@@ -2597,7 +2601,7 @@ export const Clients = () => {
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !phone) {
-        alert('Nome e Telefone são obrigatórios');
+        toast.warning('Nome e Telefone são obrigatórios');
         return;
     }
 
@@ -2613,6 +2617,7 @@ export const Clients = () => {
     };
 
     addClient(newClient);
+    toast.success('Cliente cadastrado com sucesso!');
     setIsModalOpen(false);
     resetForm();
   };
@@ -2809,6 +2814,7 @@ import React, { useState } from 'react';
 import { useAuth, useData } from '../context/Store';
 import { Role, MovementType, OutputReason, SCHOOL_CATEGORIES, SHIRT_MODELS, SCHOOL_LIST } from '../types';
 import { GraduationCap, Package, Plus, CheckCircle, Save, ShoppingBag, Truck } from 'lucide-react';
+import { toast } from 'sonner';
 
 const SIZES_ORDER = ['08', '10', '12', '14', 'PP', 'P', 'M', 'G', 'GG', 'EXG'];
 
@@ -2869,17 +2875,17 @@ export const SchoolUniforms = () => {
     if (!formProductId) return;
     
     if (isShirtTab && !formModel) {
-      alert('Selecione o Modelo da Camisa (Polo ou Gola Redonda)');
+      toast.warning('Selecione o Modelo da Camisa (Polo ou Gola Redonda)');
       return;
     }
 
     if (!formSize) {
-      alert('Selecione um tamanho.');
+      toast.warning('Selecione um tamanho.');
       return;
     }
 
     if (!formVariantId) {
-      alert(`O tamanho ${formSize} não está cadastrado/ativo para este produto no sistema.`);
+      toast.error(`O tamanho ${formSize} não está cadastrado/ativo para este produto no sistema.`);
       return;
     }
 
@@ -2887,7 +2893,7 @@ export const SchoolUniforms = () => {
 
     // Validate School Selection
     if (formOutputType === OutputReason.ENTREGA_ESCOLAR && !formClient) {
-      alert('Selecione a Escola/Instituição.');
+      toast.warning('Selecione a Escola/Instituição.');
       return;
     }
 
@@ -2911,7 +2917,7 @@ export const SchoolUniforms = () => {
     });
 
     if (success) {
-      alert('Saída escolar registrada com sucesso!');
+      toast.success('Saída escolar registrada com sucesso!');
       setIsModalOpen(false);
     }
   };
@@ -3453,6 +3459,7 @@ import React, { useState, useEffect } from 'react';
 import { useData, useAuth } from '../context/Store';
 import { Order, OrderStatus, PaymentMethod, OrderItem, Product, MovementType, OutputReason } from '../types';
 import { X, Plus, Trash2, Save } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface NewOrderModalProps {
   isOpen: boolean;
@@ -3503,7 +3510,7 @@ export const NewOrderModal = ({ isOpen, onClose }: NewOrderModalProps) => {
 
   const handleAddItem = () => {
     if (!selectedProduct || !size || !color || quantity <= 0) {
-      alert('Preencha o produto, tamanho, cor e quantidade.');
+      toast.warning('Preencha o produto, tamanho, cor e quantidade.');
       return;
     }
 
@@ -3517,7 +3524,7 @@ export const NewOrderModal = ({ isOpen, onClose }: NewOrderModalProps) => {
 
     // Check stock locally before adding to cart (optional but good UX)
     if (matchingVariant && matchingVariant.stock < quantity) {
-      alert(`Atenção: Estoque atual (${matchingVariant.stock}) é menor que a quantidade solicitada.`);
+      toast.warning(`Atenção: Estoque atual (${matchingVariant.stock}) é menor que a quantidade solicitada.`);
       // We allow adding but warn, or we could block. Let's allow but warn.
     }
 
@@ -3540,10 +3547,12 @@ export const NewOrderModal = ({ isOpen, onClose }: NewOrderModalProps) => {
     // Keep size/color or reset? Resetting is safer.
     setSize('');
     setColor('');
+    toast.success('Item adicionado ao pedido.');
   };
 
   const handleRemoveItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index));
+    toast.info('Item removido.');
   };
 
   const calculateTotal = () => {
@@ -3560,12 +3569,12 @@ export const NewOrderModal = ({ isOpen, onClose }: NewOrderModalProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!clientName || !deliveryDate || items.length === 0) {
-      alert('Preencha os campos obrigatórios e adicione pelo menos um item.');
+      toast.error('Preencha os campos obrigatórios e adicione pelo menos um item.');
       return;
     }
 
     if (!user) {
-      alert('Erro: Usuário não autenticado.');
+      toast.error('Erro: Usuário não autenticado.');
       return;
     }
 
@@ -3605,7 +3614,7 @@ export const NewOrderModal = ({ isOpen, onClose }: NewOrderModalProps) => {
     }
 
     if (stockErrors) {
-      alert('Alguns itens não puderam ter o estoque baixado (estoque insuficiente). O pedido será criado, mas verifique o estoque.');
+      toast.warning('Alguns itens não puderam ter o estoque baixado (estoque insuficiente). O pedido será criado, mas verifique o estoque.');
     }
 
     // 2. Create/Get Client
@@ -3644,6 +3653,7 @@ export const NewOrderModal = ({ isOpen, onClose }: NewOrderModalProps) => {
     };
 
     addOrder(newOrder);
+    toast.success('Pedido criado com sucesso!');
     onClose();
     
     // Reset form

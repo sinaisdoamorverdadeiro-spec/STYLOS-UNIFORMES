@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useData } from '../context/Store';
 import { Client } from '../types';
 import { Plus, Search, User, Building, MapPin, Phone, Mail, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export const Clients = () => {
   const { clients, addClient } = useData();
@@ -20,7 +21,7 @@ export const Clients = () => {
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !phone) {
-        alert('Nome e Telefone são obrigatórios');
+        toast.warning('Nome e Telefone são obrigatórios');
         return;
     }
 
@@ -36,6 +37,7 @@ export const Clients = () => {
     };
 
     addClient(newClient);
+    toast.success('Cliente cadastrado com sucesso!');
     setIsModalOpen(false);
     resetForm();
   };

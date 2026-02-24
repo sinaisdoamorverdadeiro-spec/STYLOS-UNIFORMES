@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth, useData } from '../context/Store';
 import { Role, MovementType, OutputReason, SCHOOL_CATEGORIES, SHIRT_MODELS, SCHOOL_LIST } from '../types';
 import { GraduationCap, Package, Plus, CheckCircle, Save, ShoppingBag, Truck } from 'lucide-react';
+import { toast } from 'sonner';
 
 const SIZES_ORDER = ['08', '10', '12', '14', 'PP', 'P', 'M', 'G', 'GG', 'EXG'];
 
@@ -62,17 +63,17 @@ export const SchoolUniforms = () => {
     if (!formProductId) return;
     
     if (isShirtTab && !formModel) {
-      alert('Selecione o Modelo da Camisa (Polo ou Gola Redonda)');
+      toast.warning('Selecione o Modelo da Camisa (Polo ou Gola Redonda)');
       return;
     }
 
     if (!formSize) {
-      alert('Selecione um tamanho.');
+      toast.warning('Selecione um tamanho.');
       return;
     }
 
     if (!formVariantId) {
-      alert(`O tamanho ${formSize} não está cadastrado/ativo para este produto no sistema.`);
+      toast.error(`O tamanho ${formSize} não está cadastrado/ativo para este produto no sistema.`);
       return;
     }
 
@@ -80,7 +81,7 @@ export const SchoolUniforms = () => {
 
     // Validate School Selection
     if (formOutputType === OutputReason.ENTREGA_ESCOLAR && !formClient) {
-      alert('Selecione a Escola/Instituição.');
+      toast.warning('Selecione a Escola/Instituição.');
       return;
     }
 
@@ -104,7 +105,7 @@ export const SchoolUniforms = () => {
     });
 
     if (success) {
-      alert('Saída escolar registrada com sucesso!');
+      toast.success('Saída escolar registrada com sucesso!');
       setIsModalOpen(false);
     }
   };

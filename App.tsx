@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Toaster } from 'sonner';
 import { StoreProvider, useAuth } from './context/Store';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
@@ -16,11 +17,15 @@ import { USERS } from './mockData';
 
 const LoginScreen = () => {
   const { login } = useAuth();
-  const [email, setEmail] = useState('admin@stylos.com');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    login(email);
+    // Simple validation for demo purposes - in a real app, this would validate against a backend
+    if (email && password) {
+        login(email);
+    }
   };
 
   return (
@@ -28,7 +33,7 @@ const LoginScreen = () => {
       <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
         <div className="bg-blue-600 p-8 text-center">
           <h1 className="text-3xl font-bold text-white tracking-widest">STYLOS</h1>
-          <p className="text-blue-200 mt-2 text-sm">Gestão de Uniformes</p>
+          <p className="text-blue-200 mt-2 text-sm">Gestão Profissional de Uniformes</p>
         </div>
         <div className="p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -47,33 +52,25 @@ const LoginScreen = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
               <input 
                 type="password" 
-                value="123456"
-                readOnly
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                placeholder="••••••••"
+                required
               />
             </div>
             <button 
               type="submit" 
-              className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition"
+              className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition shadow-lg transform active:scale-95"
             >
-              ENTRAR
+              ACESSAR SISTEMA
             </button>
           </form>
-
-          <div className="mt-8">
-            <p className="text-xs text-center text-gray-400 mb-3 uppercase tracking-wide">Acesso Rápido (Demo)</p>
-            <div className="space-y-2">
-              {USERS.map(u => (
-                <button 
-                  key={u.id}
-                  onClick={() => setEmail(u.email)}
-                  className="w-full text-left text-xs px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded border border-gray-200 flex justify-between items-center"
-                >
-                  <span className="font-semibold text-gray-700">{u.role}</span>
-                  <span className="text-gray-500">{u.email}</span>
-                </button>
-              ))}
-            </div>
+          
+          <div className="mt-6 text-center">
+            <p className="text-xs text-gray-400">
+              Esqueceu sua senha? Entre em contato com o administrador.
+            </p>
           </div>
         </div>
       </div>
@@ -110,7 +107,12 @@ const AuthenticatedApp = () => {
 
 const Main = () => {
   const { user } = useAuth();
-  return user ? <AuthenticatedApp /> : <LoginScreen />;
+  return (
+    <>
+      <Toaster richColors position="top-right" />
+      {user ? <AuthenticatedApp /> : <LoginScreen />}
+    </>
+  );
 };
 
 export default function App() {
