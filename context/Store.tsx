@@ -1,18 +1,20 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, Product, Order, Client, Expense, Role, OrderStatus, StockMovement, MovementType } from '../types';
-import { USERS } from '../mockData'; // Keep USERS local for auth simulation
+import { USERS } from '../mockData';
 import { supabase } from '../services/supabase';
+import { toast } from 'sonner';
 
-// --- Auth Context ---
 interface AuthContextType {
   user: User | null;
-  login: (email: string) => void;
+  login: (email: string, password?: string) => Promise<boolean>;
   logout: () => void;
+  registerUser: (userData: User) => Promise<boolean>;
+  usersList: User[]; // For Admin to see
+  deleteUser: (id: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// --- Data Context ---
 interface DataContextType {
   products: Product[];
   orders: Order[];
@@ -32,12 +34,9 @@ interface DataContextType {
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
-// --- Provider ---
 export const StoreProvider = ({ children }: { children: ReactNode }) => {
-  // Auth State
   const [user, setUser] = useState<User | null>(null);
-
-  // Data State
+  const [usersList, setUsersList] = useState<User[]>([]); // State for all users
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -45,53 +44,35 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load User
   useEffect(() => {
     const storedUser = localStorage.getItem('stylos_user');
     if (storedUser) setUser(JSON.parse(storedUser));
   }, []);
 
-  // Fetch Data from Supabase
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch Products & Variants
-      const { data: productsData, error: prodError } = await supabase
-        .from('products')
-        .select('*, variants(*)');
-      
-      if (prodError) throw prodError;
+      const { data: productsData } = await supabase.from('products').select('*, variants(*)');
+      if (productsData) setProducts(productsData as unknown as Product[]);
 
-      if (productsData) {
-        // Transform snake_case to camelCase if needed, or just cast if types match enough
-        // Supabase returns variants as an array nested in the product
-        setProducts(productsData as unknown as Product[]);
-      }
-
-      // 2. Fetch Stock Movements
-      const { data: movementsData, error: movError } = await supabase
-        .from('stock_movements')
-        .select('*')
-        .order('date', { ascending: false });
-      
-      if (movError) throw movError;
+      const { data: movementsData } = await supabase.from('stock_movements').select('*').order('date', { ascending: false });
       if (movementsData) setStockMovements(movementsData as unknown as StockMovement[]);
 
-      // 3. Fetch Clients
       const { data: clientsData } = await supabase.from('clients').select('*');
       if (clientsData) setClients(clientsData as unknown as Client[]);
 
-      // 4. Fetch Orders
       const { data: ordersData } = await supabase.from('orders').select('*');
       if (ordersData) setOrders(ordersData as unknown as Order[]);
 
-      // 5. Fetch Expenses
       const { data: expensesData } = await supabase.from('expenses').select('*');
       if (expensesData) setExpenses(expensesData as unknown as Expense[]);
 
+      // Fetch Users (Simulated Table)
+      const { data: usersData } = await supabase.from('users').select('*');
+      if (usersData) setUsersList(usersData as unknown as User[]);
+
     } catch (error) {
       console.error('Error fetching data:', error);
-      // Fallback to empty or show toast
     } finally {
       setLoading(false);
     }
@@ -101,13 +82,33 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
     fetchData();
   }, []);
 
-  const login = (email: string) => {
-    const foundUser = USERS.find(u => u.email === email);
-    if (foundUser) {
-      setUser(foundUser);
-      localStorage.setItem('stylos_user', JSON.stringify(foundUser));
+  const login = async (email: string, password?: string): Promise<boolean> => {
+    // 1. Check Mock Users first (fallback)
+    const mockUser = USERS.find(u => u.email === email);
+    if (mockUser) {
+       setUser(mockUser);
+       localStorage.setItem('stylos_user', JSON.stringify(mockUser));
+       return true;
+    }
+
+    // 2. Check Supabase Users
+    // NOTE: In a real app, use supabase.auth.signInWithPassword
+    // Here we are using a custom 'users' table as requested for simple management
+    const { data: foundUsers, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .eq('password', password); // Plain text for prototype simplicity as requested
+
+    if (foundUsers && foundUsers.length > 0) {
+      const loggedUser = foundUsers[0] as User;
+      setUser(loggedUser);
+      localStorage.setItem('stylos_user', JSON.stringify(loggedUser));
+      toast.success(`Bem vindo, ${loggedUser.name}!`);
+      return true;
     } else {
-      alert('Usuário não encontrado (Use os emails sugeridos na tela de login)');
+      toast.error('Email ou senha incorretos.');
+      return false;
     }
   };
 
@@ -116,10 +117,25 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem('stylos_user');
   };
 
-  // --- Actions ---
+  const registerUser = async (userData: User): Promise<boolean> => {
+    const { data, error } = await supabase.from('users').insert([userData]);
+    if (error) {
+      console.error('Error registering user:', error);
+      toast.error('Erro ao cadastrar usuário.');
+      return false;
+    }
+    await fetchData();
+    toast.success('Usuário cadastrado com sucesso!');
+    return true;
+  };
+
+  const deleteUser = async (id: string) => {
+    await supabase.from('users').delete().eq('id', id);
+    await fetchData();
+    toast.success('Usuário removido.');
+  };
 
   const addProduct = async (p: Product) => {
-    // Insert Product
     const { data: prodData, error: prodError } = await supabase
       .from('products')
       .insert([{
@@ -135,12 +151,8 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
       .select()
       .single();
 
-    if (prodError || !prodData) {
-      console.error('Error adding product:', prodError);
-      return;
-    }
+    if (prodError || !prodData) return;
 
-    // Insert Variants
     if (p.variants && p.variants.length > 0) {
       const variantsToInsert = p.variants.map(v => ({
         product_id: prodData.id,
@@ -150,30 +162,16 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         sku: v.sku,
         model: v.model
       }));
-
-      const { error: varError } = await supabase
-        .from('variants')
-        .insert(variantsToInsert);
-      
-      if (varError) console.error('Error adding variants:', varError);
+      await supabase.from('variants').insert(variantsToInsert);
     }
-
     await fetchData();
   };
 
   const updateProduct = async (id: string, data: Partial<Product>) => {
-    // This is complex because of variants. 
-    // For now, we'll assume we are mostly updating stock via movements.
-    // If updating product details:
     const { variants, ...productData } = data;
-
     if (Object.keys(productData).length > 0) {
         await supabase.from('products').update(productData).eq('id', id);
     }
-    
-    // If variants need update, it's usually specific ones.
-    // This simple implementation might need expansion for full edit capabilities.
-    
     await fetchData();
   };
 
@@ -200,74 +198,46 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
   const addStockMovement = async (movementData: Omit<StockMovement, 'id' | 'date' | 'userId'>): Promise<boolean> => {
     if (!user) return false;
 
-    // 1. Validate Stock for OUTPUT
     if (movementData.type === MovementType.SAIDA) {
         const product = products.find(p => p.id === movementData.productId);
         const variant = product?.variants.find(v => v.id === movementData.variantId);
 
-        if (!product || !variant) {
-            alert('Produto ou variação não encontrada.');
-            return false;
-        }
-
+        if (!product || !variant) return false;
         if (variant.stock < movementData.quantity) {
-            alert(`Estoque insuficiente! Disponível: ${variant.stock}. Sugestão: gerar compra/produção.`);
+            toast.error(`Estoque insuficiente! Disponível: ${variant.stock}`);
             return false;
         }
 
-        // 2. Subtract Stock in DB
-        const { error } = await supabase
-            .from('variants')
+        await supabase.from('variants')
             .update({ stock: variant.stock - movementData.quantity })
             .eq('id', movementData.variantId);
-        
-        if (error) {
-            console.error('Error updating stock:', error);
-            return false;
-        }
     } else if (movementData.type === MovementType.ENTRADA) {
-        // Add Stock logic
         const product = products.find(p => p.id === movementData.productId);
         const variant = product?.variants.find(v => v.id === movementData.variantId);
         
         if (variant) {
-            const { error } = await supabase
-                .from('variants')
+            await supabase.from('variants')
                 .update({ stock: variant.stock + movementData.quantity })
                 .eq('id', movementData.variantId);
-
-            if (error) {
-                console.error('Error updating stock:', error);
-                return false;
-            }
         }
     }
 
-    // 3. Log Movement
-    const { error: movError } = await supabase
-        .from('stock_movements')
-        .insert([{
-            ...movementData,
-            date: new Date().toISOString(),
-            user_id: user.id,
-            // Ensure snake_case mapping if needed, but Supabase handles auto-mapping if columns match
-            product_id: movementData.productId,
-            variant_id: movementData.variantId,
-            client_name: movementData.clientName,
-            product_name: movementData.productName
-        }]);
+    await supabase.from('stock_movements').insert([{
+        ...movementData,
+        date: new Date().toISOString(),
+        user_id: user.id,
+        product_id: movementData.productId,
+        variant_id: movementData.variantId,
+        client_name: movementData.clientName,
+        product_name: movementData.productName
+    }]);
 
-    if (movError) {
-        console.error('Error logging movement:', movError);
-        return false;
-    }
-
-    await fetchData(); // Refresh local state
+    await fetchData();
     return true;
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, registerUser, usersList, deleteUser }}>
       <DataContext.Provider value={{ 
           products, orders, clients, expenses, stockMovements, loading,
           addProduct, updateProduct, addOrder, updateOrderStatus, addClient, addExpense, addStockMovement, refreshData: fetchData 

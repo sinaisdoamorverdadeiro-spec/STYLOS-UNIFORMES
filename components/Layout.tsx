@@ -17,7 +17,8 @@ import {
   GraduationCap,
   Wifi,
   WifiOff,
-  HelpCircle
+  HelpCircle,
+  UserCog
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -43,6 +44,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeVi
     { id: 'products', label: 'Catálogo Geral', icon: Package, roles: [Role.ADMIN, Role.ESTOQUE, Role.VENDAS] },
     { id: 'production', label: 'Produção', icon: Scissors, roles: [Role.ADMIN, Role.ESTOQUE, Role.VENDAS] },
     { id: 'finance', label: 'Financeiro', icon: DollarSign, roles: [Role.ADMIN] },
+    { id: 'users', label: 'Funcionários', icon: UserCog, roles: [Role.ADMIN] },
     { id: 'help', label: 'Ajuda & Deploy', icon: HelpCircle, roles: [Role.ADMIN, Role.ESTOQUE, Role.VENDAS] },
   ];
 

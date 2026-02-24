@@ -12,6 +12,7 @@ import { Production } from './pages/Production';
 import { Clients } from './pages/Clients';
 import { Sales } from './pages/Sales';
 import { Help } from './pages/Help';
+import { Users } from './pages/Users';
 import { Role } from './types';
 import { USERS } from './mockData';
 
@@ -24,7 +25,7 @@ const LoginScreen = () => {
     e.preventDefault();
     // Simple validation for demo purposes - in a real app, this would validate against a backend
     if (email && password) {
-        login(email);
+        login(email, password);
     }
   };
 
@@ -92,6 +93,7 @@ const AuthenticatedApp = () => {
       case 'products': return <Products />;
       case 'production': return <Production />;
       case 'finance': return user?.role === Role.ADMIN ? <Finance /> : <div className="text-center mt-20 text-gray-500">Acesso negado.</div>;
+      case 'users': return user?.role === Role.ADMIN ? <Users /> : <div className="text-center mt-20 text-gray-500">Acesso negado.</div>;
       case 'clients': return <Clients />;
       case 'help': return <Help />;
       default: return <Dashboard />;
