@@ -187,6 +187,7 @@ export interface User {
   email: string;
   role: Role;
   avatar?: string;
+  password?: string; // Added for simple auth
 }
 
 export interface Client {
@@ -316,8 +317,11 @@ import { toast } from 'sonner';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string) => void;
+  login: (email: string, password?: string) => Promise<boolean>;
   logout: () => void;
+  registerUser: (userData: User) => Promise<boolean>;
+  usersList: User[]; // For Admin to see
+  deleteUser: (id: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -343,6 +347,7 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const StoreProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [usersList, setUsersList] = useState<User[]>([]); // State for all users
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -373,6 +378,10 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
       const { data: expensesData } = await supabase.from('expenses').select('*');
       if (expensesData) setExpenses(expensesData as unknown as Expense[]);
 
+      // Fetch Users (Simulated Table)
+      const { data: usersData } = await supabase.from('users').select('*');
+      if (usersData) setUsersList(usersData as unknown as User[]);
+
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -384,19 +393,57 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
     fetchData();
   }, []);
 
-  const login = (email: string) => {
-    const foundUser = USERS.find(u => u.email === email);
-    if (foundUser) {
-      setUser(foundUser);
-      localStorage.setItem('stylos_user', JSON.stringify(foundUser));
+  const login = async (email: string, password?: string): Promise<boolean> => {
+    // 1. Check Mock Users first (fallback)
+    const mockUser = USERS.find(u => u.email === email);
+    if (mockUser) {
+       setUser(mockUser);
+       localStorage.setItem('stylos_user', JSON.stringify(mockUser));
+       return true;
+    }
+
+    // 2. Check Supabase Users
+    // NOTE: In a real app, use supabase.auth.signInWithPassword
+    // Here we are using a custom 'users' table as requested for simple management
+    const { data: foundUsers, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .eq('password', password); // Plain text for prototype simplicity as requested
+
+    if (foundUsers && foundUsers.length > 0) {
+      const loggedUser = foundUsers[0] as User;
+      setUser(loggedUser);
+      localStorage.setItem('stylos_user', JSON.stringify(loggedUser));
+      toast.success(`Bem vindo, ${loggedUser.name}!`);
+      return true;
     } else {
-      toast.error('Usuário não encontrado');
+      toast.error('Email ou senha incorretos.');
+      return false;
     }
   };
 
   const logout = () => {
     setUser(null);
     localStorage.removeItem('stylos_user');
+  };
+
+  const registerUser = async (userData: User): Promise<boolean> => {
+    const { data, error } = await supabase.from('users').insert([userData]);
+    if (error) {
+      console.error('Error registering user:', error);
+      toast.error('Erro ao cadastrar usuário.');
+      return false;
+    }
+    await fetchData();
+    toast.success('Usuário cadastrado com sucesso!');
+    return true;
+  };
+
+  const deleteUser = async (id: string) => {
+    await supabase.from('users').delete().eq('id', id);
+    await fetchData();
+    toast.success('Usuário removido.');
   };
 
   const addProduct = async (p: Product) => {
@@ -501,7 +548,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, registerUser, usersList, deleteUser }}>
       <DataContext.Provider value={{ 
           products, orders, clients, expenses, stockMovements, loading,
           addProduct, updateProduct, addOrder, updateOrderStatus, addClient, addExpense, addStockMovement, refreshData: fetchData 
@@ -531,7 +578,7 @@ import React, { useState } from 'react';
 import { useAuth, useData } from '../context/Store';
 import { Role } from '../types';
 import { 
-  LayoutDashboard, Users, Package, ShoppingBag, Scissors, DollarSign, LogOut, Menu, Bell, Search, Archive, GraduationCap, Wifi, WifiOff, HelpCircle
+  LayoutDashboard, Users, Package, ShoppingBag, Scissors, DollarSign, LogOut, Menu, Bell, Search, Archive, GraduationCap, Wifi, WifiOff, HelpCircle, UserCog
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -556,6 +603,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeView, onChangeVi
     { id: 'products', label: 'Catálogo Geral', icon: Package, roles: [Role.ADMIN, Role.ESTOQUE, Role.VENDAS] },
     { id: 'production', label: 'Produção', icon: Scissors, roles: [Role.ADMIN, Role.ESTOQUE, Role.VENDAS] },
     { id: 'finance', label: 'Financeiro', icon: DollarSign, roles: [Role.ADMIN] },
+    { id: 'users', label: 'Usuários do Sistema', icon: UserCog, roles: [Role.ADMIN] },
     { id: 'help', label: 'Ajuda & Deploy', icon: HelpCircle, roles: [Role.ADMIN, Role.ESTOQUE, Role.VENDAS] },
   ];
 
@@ -660,19 +708,47 @@ import { Production } from './pages/Production';
 import { Clients } from './pages/Clients';
 import { Sales } from './pages/Sales';
 import { Help } from './pages/Help';
+import { Users } from './pages/Users';
 import { Role } from './types';
 import { USERS } from './mockData';
 
 const LoginScreen = () => {
-  const { login } = useAuth();
+  const { login, registerUser } = useAuth();
+  const [isRegistering, setIsRegistering] = useState(false);
+  
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simple validation for demo purposes - in a real app, this would validate against a backend
-    if (email && password) {
-        login(email);
+    
+    if (isRegistering) {
+        if (password !== confirmPassword) {
+            alert('As senhas não coincidem!');
+            return;
+        }
+        
+        // Register as Admin
+        const success = await registerUser({
+            id: Math.random().toString(36).substr(2, 9),
+            name,
+            email,
+            password,
+            role: Role.ADMIN,
+            avatar: `https://ui-avatars.com/api/?name=${name}&background=random`
+        });
+        
+        if (success) {
+            setIsRegistering(false);
+            setPassword('');
+            setConfirmPassword('');
+        }
+    } else {
+        if (email && password) {
+            login(email, password);
+        }
     }
   };
 
@@ -685,6 +761,20 @@ const LoginScreen = () => {
         </div>
         <div className="p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
+            {isRegistering && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nome Completo</label>
+                  <input 
+                    type="text" 
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="Seu Nome"
+                    required
+                  />
+                </div>
+            )}
+            
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
               <input 
@@ -696,6 +786,7 @@ const LoginScreen = () => {
                 required
               />
             </div>
+            
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
               <input 
@@ -707,19 +798,40 @@ const LoginScreen = () => {
                 required
               />
             </div>
+
+            {isRegistering && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar Senha</label>
+                  <input 
+                    type="password" 
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="••••••••"
+                    required
+                  />
+                </div>
+            )}
+
             <button 
               type="submit" 
-              className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition shadow-lg transform active:scale-95"
+              className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition transform hover:scale-[1.02] shadow-lg"
             >
-              ACESSAR SISTEMA
+              {isRegistering ? 'CADASTRAR ADMINISTRADOR' : 'ACESSAR SISTEMA'}
             </button>
           </form>
           
           <div className="mt-6 text-center">
-            <p className="text-xs text-gray-400">
-              Esqueceu sua senha? Entre em contato com o administrador.
-            </p>
+            <button 
+                onClick={() => setIsRegistering(!isRegistering)}
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+            >
+                {isRegistering ? 'Já tem uma conta? Fazer Login' : 'Não tem conta? Cadastre-se como Admin'}
+            </button>
           </div>
+        </div>
+        <div className="bg-gray-50 p-4 text-center text-xs text-gray-400 border-t border-gray-100">
+          &copy; 2024 Stylos Uniformes. Todos os direitos reservados.
         </div>
       </div>
     </div>
@@ -741,6 +853,7 @@ const AuthenticatedApp = () => {
       case 'production': return <Production />;
       case 'finance': return user?.role === Role.ADMIN ? <Finance /> : <div className="text-center mt-20 text-gray-500">Acesso negado.</div>;
       case 'clients': return <Clients />;
+      case 'users': return user?.role === Role.ADMIN ? <Users /> : <div className="text-center mt-20 text-gray-500">Acesso negado.</div>;
       case 'help': return <Help />;
       default: return <Dashboard />;
     }
@@ -4078,9 +4191,185 @@ export const EXPENSES: Expense[] = [];
 }
 ```
 
-```
-```
-```
-```
-```
+## 23. pages/Users.tsx
+```typescript
+import React, { useState } from 'react';
+import { useAuth } from '../context/Store';
+import { Role, User } from '../types';
+import { Plus, Trash2, Shield, User as UserIcon, Mail, Lock } from 'lucide-react';
+import { toast } from 'sonner';
+
+export const Users = () => {
+  const { usersList, registerUser, deleteUser, user: currentUser } = useAuth();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState<Role>(Role.VENDAS);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!name || !email || !password) {
+        toast.error('Preencha todos os campos.');
+        return;
+    }
+
+    const success = await registerUser({
+        id: Math.random().toString(36).substr(2, 9),
+        name,
+        email,
+        password,
+        role,
+        avatar: `https://ui-avatars.com/api/?name=${name}&background=random`
+    });
+
+    if (success) {
+        setIsModalOpen(false);
+        setName('');
+        setEmail('');
+        setPassword('');
+        setRole(Role.VENDAS);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm('Tem certeza que deseja remover este usuário?')) {
+        await deleteUser(id);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-800">Gerenciamento de Usuários</h2>
+          <p className="text-gray-500 text-sm">Controle de acesso e permissões do sistema</p>
+        </div>
+        <button 
+          onClick={() => setIsModalOpen(true)}
+          className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow-sm"
+        >
+          <Plus size={18} className="mr-2" />
+          Novo Usuário
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {usersList.map(u => (
+          <div key={u.id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-start justify-between group hover:shadow-md transition">
+            <div className="flex items-center">
+              <img src={u.avatar || 'https://via.placeholder.com/50'} alt={u.name} className="w-12 h-12 rounded-full border-2 border-gray-100 mr-4" />
+              <div>
+                <h3 className="font-bold text-gray-800">{u.name}</h3>
+                <p className="text-sm text-gray-500 flex items-center mt-1">
+                    <Mail size={12} className="mr-1" /> {u.email}
+                </p>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium mt-2 border ${
+                    u.role === Role.ADMIN ? 'bg-purple-50 text-purple-700 border-purple-100' :
+                    u.role === Role.ESTOQUE ? 'bg-orange-50 text-orange-700 border-orange-100' :
+                    'bg-blue-50 text-blue-700 border-blue-100'
+                }`}>
+                    {u.role === Role.ADMIN && <Shield size={10} className="mr-1" />}
+                    {u.role}
+                </span>
+              </div>
+            </div>
+            {currentUser?.id !== u.id && (
+                <button 
+                    onClick={() => handleDelete(u.id)}
+                    className="text-gray-300 hover:text-red-500 p-2 rounded-full hover:bg-red-50 transition"
+                    title="Remover Usuário"
+                >
+                    <Trash2 size={18} />
+                </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-md shadow-2xl p-6">
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Novo Usuário</h3>
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
+                    <div className="relative">
+                        <UserIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                        <input 
+                            type="text" 
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Nome Completo"
+                            required
+                        />
+                    </div>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                        <input 
+                            type="email" 
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="email@exemplo.com"
+                            required
+                        />
+                    </div>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+                    <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                        <input 
+                            type="password" 
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Senha de acesso"
+                            required
+                        />
+                    </div>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Função (Cargo)</label>
+                    <select 
+                        value={role}
+                        onChange={(e) => setRole(e.target.value as Role)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value={Role.VENDAS}>Vendedor</option>
+                        <option value={Role.ESTOQUE}>Estoquista</option>
+                        <option value={Role.ADMIN}>Administrador</option>
+                    </select>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-6">
+                    <button 
+                        type="button"
+                        onClick={() => setIsModalOpen(false)}
+                        className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                    >
+                        Cancelar
+                    </button>
+                    <button 
+                        type="submit"
+                        className="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition shadow-sm"
+                    >
+                        Criar Usuário
+                    </button>
+                </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 ```
