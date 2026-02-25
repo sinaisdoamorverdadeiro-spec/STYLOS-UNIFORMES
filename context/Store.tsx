@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, Product, Order, Client, Expense, Role, OrderStatus, StockMovement, MovementType } from '../types';
 import { USERS, PRODUCTS, ORDERS, CLIENTS, EXPENSES } from '../mockData';
-import { supabase } from '../services/supabase';
 import { toast } from 'sonner';
 
 interface AuthContextType {
@@ -36,7 +35,7 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const StoreProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [usersList, setUsersList] = useState<User[]>([]); // State for all users
+  const [usersList, setUsersList] = useState<User[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -44,89 +43,97 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Load Initial Data from LocalStorage or MockData
   useEffect(() => {
-    const storedUser = localStorage.getItem('stylos_user');
-    if (storedUser) setUser(JSON.parse(storedUser));
-  }, []);
+    const loadLocalData = () => {
+      setLoading(true);
+      
+      // User Session
+      const storedUser = localStorage.getItem('stylos_user');
+      if (storedUser) setUser(JSON.parse(storedUser));
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      // 1. Fetch Products & Variants
-      const { data: productsData, error: prodError } = await supabase.from('products').select('*, variants(*)');
-      if (prodError) throw prodError;
-      if (productsData) setProducts(productsData as unknown as Product[]);
-
-      // 2. Fetch Stock Movements
-      const { data: movementsData, error: movError } = await supabase.from('stock_movements').select('*').order('date', { ascending: false });
-      if (movError) throw movError;
-      if (movementsData) setStockMovements(movementsData as unknown as StockMovement[]);
-
-      // 3. Fetch Clients
-      const { data: clientsData, error: clientError } = await supabase.from('clients').select('*');
-      if (clientError) throw clientError;
-      if (clientsData) setClients(clientsData as unknown as Client[]);
-
-      // 4. Fetch Orders
-      const { data: ordersData, error: orderError } = await supabase.from('orders').select('*');
-      if (orderError) throw orderError;
-      if (ordersData) setOrders(ordersData as unknown as Order[]);
-
-      // 5. Fetch Expenses
-      const { data: expensesData, error: expenseError } = await supabase.from('expenses').select('*');
-      if (expenseError) throw expenseError;
-      if (expensesData) setExpenses(expensesData as unknown as Expense[]);
-
-      // Fetch Users (Simulated Table)
-      const { data: usersData, error: usersError } = await supabase.from('users').select('*');
-      if (usersError) {
-        console.warn('Could not fetch users from DB (table might be missing). Using mock data.', usersError);
+      // Users List
+      const storedUsersList = localStorage.getItem('stylos_users_list');
+      if (storedUsersList) {
+        setUsersList(JSON.parse(storedUsersList));
+      } else {
         setUsersList(USERS);
-      } else if (usersData) {
-        setUsersList(usersData as unknown as User[]);
+        localStorage.setItem('stylos_users_list', JSON.stringify(USERS));
       }
 
-    } catch (error) {
-      console.error('Error fetching data (Supabase might be down or unconfigured). Using Mock Data.', error);
-      // Fallback to Mock Data for Demo Mode
-      setProducts(PRODUCTS);
-      setOrders(ORDERS);
-      setClients(CLIENTS);
-      setExpenses(EXPENSES);
-      setUsersList(USERS);
-      // Stock movements mock is empty initially or could be added to mockData if needed
-    } finally {
-      setLoading(false);
-    }
-  };
+      // Products
+      const storedProducts = localStorage.getItem('stylos_products');
+      if (storedProducts) {
+        setProducts(JSON.parse(storedProducts));
+      } else {
+        setProducts(PRODUCTS);
+        localStorage.setItem('stylos_products', JSON.stringify(PRODUCTS));
+      }
 
-  useEffect(() => {
-    fetchData();
+      // Orders
+      const storedOrders = localStorage.getItem('stylos_orders');
+      if (storedOrders) {
+        setOrders(JSON.parse(storedOrders));
+      } else {
+        setOrders(ORDERS);
+        localStorage.setItem('stylos_orders', JSON.stringify(ORDERS));
+      }
+
+      // Clients
+      const storedClients = localStorage.getItem('stylos_clients');
+      if (storedClients) {
+        setClients(JSON.parse(storedClients));
+      } else {
+        setClients(CLIENTS);
+        localStorage.setItem('stylos_clients', JSON.stringify(CLIENTS));
+      }
+
+      // Expenses
+      const storedExpenses = localStorage.getItem('stylos_expenses');
+      if (storedExpenses) {
+        setExpenses(JSON.parse(storedExpenses));
+      } else {
+        setExpenses(EXPENSES);
+        localStorage.setItem('stylos_expenses', JSON.stringify(EXPENSES));
+      }
+
+      // Stock Movements
+      const storedMovements = localStorage.getItem('stylos_movements');
+      if (storedMovements) {
+        setStockMovements(JSON.parse(storedMovements));
+      } else {
+        setStockMovements([]);
+        localStorage.setItem('stylos_movements', JSON.stringify([]));
+      }
+
+      setLoading(false);
+    };
+
+    loadLocalData();
   }, []);
 
+  // Helper to persist data
+  const persist = (key: string, data: any) => {
+    localStorage.setItem(key, JSON.stringify(data));
+  };
+
+  const refreshData = async () => {
+    // In local mode, state is already fresh, but we can re-read from LS if needed.
+    // For now, we rely on state updates being synchronous-ish.
+  };
+
   const login = async (email: string, password?: string): Promise<boolean> => {
-    // 1. Check Mock Users first (fallback)
-    const mockUser = USERS.find(u => u.email === email);
-    if (mockUser) {
-       // Check password if provided (mock users don't have passwords in mockData, so we accept any or specific hardcoded ones if we wanted)
-       // For simplicity, we allow mock users to login easily
-       setUser(mockUser);
-       localStorage.setItem('stylos_user', JSON.stringify(mockUser));
-       return true;
-    }
-
-    // 2. Check Supabase Users
-    const { data: foundUsers, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .eq('password', password); 
-
-    if (foundUsers && foundUsers.length > 0) {
-      const loggedUser = foundUsers[0] as User;
-      setUser(loggedUser);
-      localStorage.setItem('stylos_user', JSON.stringify(loggedUser));
-      toast.success(`Bem vindo, ${loggedUser.name}!`);
+    // Check against current usersList (which is loaded from LS or Mock)
+    const foundUser = usersList.find(u => u.email === email && (password ? u.password === password : true));
+    
+    // Fallback for initial mock users if they don't have passwords set in LS yet
+    // (Though our mockData update added passwords, existing LS might be stale if we didn't clear it. 
+    //  But for a fresh start, it works.)
+    
+    if (foundUser) {
+      setUser(foundUser);
+      localStorage.setItem('stylos_user', JSON.stringify(foundUser));
+      toast.success(`Bem vindo, ${foundUser.name}!`);
       return true;
     } else {
       toast.error('Email ou senha incorretos.');
@@ -140,146 +147,97 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const registerUser = async (userData: User): Promise<boolean> => {
-    // Try Supabase first
-    const { data, error } = await supabase.from('users').insert([userData]);
-    
-    if (error) {
-      console.error('Error registering user (Supabase):', error);
-      
-      // Check for "table not found" error (Postgres 42P01 or specific message)
-      if (error.code === '42P01' || error.message.includes('Could not find the table')) {
-        // Fallback to Local State
-        setUsersList(prev => [...prev, userData]);
-        toast.success('Usuário salvo localmente (Tabela não criada no banco)');
-        return true;
-      } else {
-        toast.error(`Erro ao cadastrar: ${error.message}`);
-        return false;
-      }
-    }
-
-    // If successful, refresh data
-    await fetchData();
+    const updatedList = [...usersList, userData];
+    setUsersList(updatedList);
+    persist('stylos_users_list', updatedList);
     toast.success('Usuário cadastrado com sucesso!');
     return true;
   };
 
   const deleteUser = async (id: string) => {
-    const { error } = await supabase.from('users').delete().eq('id', id);
-    
-    if (error) {
-        console.error('Error deleting user (Supabase):', error);
-        // Fallback local delete if table missing
-        if (error.code === '42P01' || error.message.includes('Could not find the table')) {
-            setUsersList(prev => prev.filter(u => u.id !== id));
-            toast.success('Usuário removido (Localmente)');
-            return;
-        }
-        toast.error('Erro ao remover usuário');
-    } else {
-        await fetchData();
-        toast.success('Usuário removido.');
-    }
+    const updatedList = usersList.filter(u => u.id !== id);
+    setUsersList(updatedList);
+    persist('stylos_users_list', updatedList);
+    toast.success('Usuário removido.');
   };
 
   const addProduct = async (p: Product) => {
-    const { data: prodData, error: prodError } = await supabase
-      .from('products')
-      .insert([{
-        name: p.name,
-        category: p.category,
-        description: p.description,
-        price: p.price,
-        cost: p.cost,
-        min_stock: p.minStock,
-        status: p.status,
-        image: p.image
-      }])
-      .select()
-      .single();
-
-    if (prodError || !prodData) return;
-
-    if (p.variants && p.variants.length > 0) {
-      const variantsToInsert = p.variants.map(v => ({
-        product_id: prodData.id,
-        size: v.size,
-        color: v.color,
-        stock: v.stock,
-        sku: v.sku,
-        model: v.model
-      }));
-      await supabase.from('variants').insert(variantsToInsert);
-    }
-    await fetchData();
+    const updatedProducts = [...products, p];
+    setProducts(updatedProducts);
+    persist('stylos_products', updatedProducts);
   };
 
   const updateProduct = async (id: string, data: Partial<Product>) => {
-    const { variants, ...productData } = data;
-    if (Object.keys(productData).length > 0) {
-        await supabase.from('products').update(productData).eq('id', id);
-    }
-    await fetchData();
+    const updatedProducts = products.map(p => p.id === id ? { ...p, ...data } : p);
+    setProducts(updatedProducts);
+    persist('stylos_products', updatedProducts);
   };
 
   const addOrder = async (o: Order) => {
-    await supabase.from('orders').insert([o]);
-    await fetchData();
+    const updatedOrders = [...orders, o];
+    setOrders(updatedOrders);
+    persist('stylos_orders', updatedOrders);
   };
   
   const updateOrderStatus = async (id: string, status: OrderStatus) => {
-    await supabase.from('orders').update({ status }).eq('id', id);
-    await fetchData();
+    const updatedOrders = orders.map(o => o.id === id ? { ...o, status } : o);
+    setOrders(updatedOrders);
+    persist('stylos_orders', updatedOrders);
   };
 
   const addClient = async (c: Client) => {
-    await supabase.from('clients').insert([c]);
-    await fetchData();
+    const updatedClients = [...clients, c];
+    setClients(updatedClients);
+    persist('stylos_clients', updatedClients);
   };
 
   const addExpense = async (e: Expense) => {
-    await supabase.from('expenses').insert([e]);
-    await fetchData();
+    const updatedExpenses = [...expenses, e];
+    setExpenses(updatedExpenses);
+    persist('stylos_expenses', updatedExpenses);
   };
 
   const addStockMovement = async (movementData: Omit<StockMovement, 'id' | 'date' | 'userId'>): Promise<boolean> => {
     if (!user) return false;
 
-    if (movementData.type === MovementType.SAIDA) {
-        const product = products.find(p => p.id === movementData.productId);
-        const variant = product?.variants.find(v => v.id === movementData.variantId);
+    let updatedProducts = [...products];
+    const productIndex = updatedProducts.findIndex(p => p.id === movementData.productId);
+    if (productIndex === -1) return false;
 
-        if (!product || !variant) return false;
+    const product = updatedProducts[productIndex];
+    const variantIndex = product.variants.findIndex(v => v.id === movementData.variantId);
+    if (variantIndex === -1) return false;
+
+    const variant = product.variants[variantIndex];
+
+    if (movementData.type === MovementType.SAIDA) {
         if (variant.stock < movementData.quantity) {
             toast.error(`Estoque insuficiente! Disponível: ${variant.stock}`);
             return false;
         }
-
-        await supabase.from('variants')
-            .update({ stock: variant.stock - movementData.quantity })
-            .eq('id', movementData.variantId);
+        // Update stock
+        product.variants[variantIndex] = { ...variant, stock: variant.stock - movementData.quantity };
     } else if (movementData.type === MovementType.ENTRADA) {
-        const product = products.find(p => p.id === movementData.productId);
-        const variant = product?.variants.find(v => v.id === movementData.variantId);
-        
-        if (variant) {
-            await supabase.from('variants')
-                .update({ stock: variant.stock + movementData.quantity })
-                .eq('id', movementData.variantId);
-        }
+        product.variants[variantIndex] = { ...variant, stock: variant.stock + movementData.quantity };
     }
 
-    await supabase.from('stock_movements').insert([{
-        ...movementData,
-        date: new Date().toISOString(),
-        user_id: user.id,
-        product_id: movementData.productId,
-        variant_id: movementData.variantId,
-        client_name: movementData.clientName,
-        product_name: movementData.productName
-    }]);
+    // Save updated products
+    updatedProducts[productIndex] = product;
+    setProducts(updatedProducts);
+    persist('stylos_products', updatedProducts);
 
-    await fetchData();
+    // Log Movement
+    const newMovement: StockMovement = {
+        ...movementData,
+        id: Math.random().toString(36).substr(2, 9),
+        date: new Date().toISOString(),
+        userId: user.id,
+    };
+
+    const updatedMovements = [newMovement, ...stockMovements];
+    setStockMovements(updatedMovements);
+    persist('stylos_movements', updatedMovements);
+
     return true;
   };
 
@@ -287,7 +245,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
     <AuthContext.Provider value={{ user, login, logout, registerUser, usersList, deleteUser }}>
       <DataContext.Provider value={{ 
           products, orders, clients, expenses, stockMovements, loading,
-          addProduct, updateProduct, addOrder, updateOrderStatus, addClient, addExpense, addStockMovement, refreshData: fetchData 
+          addProduct, updateProduct, addOrder, updateOrderStatus, addClient, addExpense, addStockMovement, refreshData 
       }}>
         {children}
       </DataContext.Provider>

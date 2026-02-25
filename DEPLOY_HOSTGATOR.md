@@ -19,7 +19,8 @@ Antes de subir os arquivos, você precisa "compilar" o projeto para transformar 
 Como este é um aplicativo de Página Única (SPA) usando React Router, precisamos configurar o servidor Apache da HostGator para redirecionar todas as requisições para o `index.html`. Sem isso, ao recarregar uma página interna (ex: `/vendas`), você receberá um erro 404.
 
 1.  Crie um arquivo chamado **`.htaccess`** dentro da pasta **`dist`** (se ele não foi criado automaticamente).
-2.  Cole o seguinte conteúdo nele:
+    *   *Nota: Se você já tem um arquivo `.htaccess` na pasta `public` do seu projeto, ele será copiado automaticamente para a `dist` durante o build.*
+2.  O conteúdo deve ser:
 
 ```apache
 <IfModule mod_rewrite.c>
@@ -42,33 +43,15 @@ Como este é um aplicativo de Página Única (SPA) usando React Router, precisam
 5.  Selecione todos os arquivos **de dentro da pasta `dist`** (não a pasta `dist` em si, mas o conteúdo dela: `index.html`, `assets`, `.htaccess`, etc).
     *   Dica: Você pode zipar o conteúdo da pasta `dist` (`conteudo.zip`), fazer upload desse único arquivo e depois usar a opção **Extrair** do cPanel.
 
-## 4. Variáveis de Ambiente (Supabase)
+## 4. Banco de Dados (Local Storage)
 
-Como a HostGator serve arquivos estáticos, não há um "backend" rodando Node.js para ler variáveis de ambiente do servidor. As chaves do Supabase precisam estar "embutidas" no código durante o build.
-
-**Opção A (Recomendada para Simplicidade):**
-Crie um arquivo `.env.production` na raiz do projeto (no seu computador, antes do build) com suas chaves reais:
-
-```env
-VITE_SUPABASE_URL=https://sua-url-do-supabase.supabase.co
-VITE_SUPABASE_ANON_KEY=sua-chave-anonima-publica
-```
-
-Ao rodar `npm run build`, o Vite vai ler esse arquivo e substituir as variáveis no código JavaScript final.
-
-**Opção B (Se não quiser criar o arquivo):**
-Rode o build passando as variáveis diretamente no terminal:
-
-```bash
-VITE_SUPABASE_URL=https://... VITE_SUPABASE_ANON_KEY=ey... npm run build
-```
+O projeto foi configurado para funcionar **sem banco de dados externo** (como Supabase).
+*   Todos os dados (produtos, clientes, pedidos, funcionários) são salvos no **Navegador** (Local Storage) de quem está usando.
+*   Isso significa que não é necessário configurar variáveis de ambiente ou conectar bancos de dados.
+*   **Atenção:** Se você limpar o cache do navegador ou trocar de computador, os dados não estarão lá. Para uso profissional com múltiplos usuários acessando os mesmos dados em computadores diferentes, seria necessário reativar o Supabase no futuro.
 
 ## 5. Teste
 
 Acesse seu domínio (ex: `www.sua-loja.com.br`). O aplicativo deve carregar.
 *   Se aparecer a tela de login, o deploy funcionou!
-*   Se der erro 404 ao recarregar páginas, verifique se o arquivo `.htaccess` está na mesma pasta do `index.html`.
-
----
-
-**Nota:** Lembre-se que para o banco de dados funcionar, a URL do seu site na HostGator deve estar adicionada na lista de **Authentication > URL Configuration > Site URL** no painel do Supabase, embora para login simples com email/senha isso geralmente não seja bloqueante.
+*   Use os logins padrão (ex: `admin@stylos.com` / `admin123`) ou os que você criar.
