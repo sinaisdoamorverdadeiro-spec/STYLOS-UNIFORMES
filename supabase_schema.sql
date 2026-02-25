@@ -81,6 +81,17 @@ create table public.expenses (
   created_at timestamp with time zone default now()
 );
 
+-- 7. Users Table
+create table public.users (
+  id text primary key,
+  name text not null,
+  email text unique not null,
+  role text not null,
+  avatar text,
+  password text, -- Storing plain text as requested for this prototype
+  created_at timestamp with time zone default now()
+);
+
 -- Enable Row Level Security (RLS) - Optional for now, but good practice
 alter table public.products enable row level security;
 alter table public.variants enable row level security;
@@ -88,6 +99,7 @@ alter table public.stock_movements enable row level security;
 alter table public.clients enable row level security;
 alter table public.orders enable row level security;
 alter table public.expenses enable row level security;
+alter table public.users enable row level security;
 
 -- Create policies to allow public access (for simplicity in this demo)
 -- IN PRODUCTION, YOU SHOULD RESTRICT THIS!
@@ -97,3 +109,4 @@ create policy "Allow public access" on public.stock_movements for all using (tru
 create policy "Allow public access" on public.clients for all using (true);
 create policy "Allow public access" on public.orders for all using (true);
 create policy "Allow public access" on public.expenses for all using (true);
+create policy "Allow public access" on public.users for all using (true);

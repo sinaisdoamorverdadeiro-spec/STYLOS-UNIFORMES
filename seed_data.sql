@@ -63,3 +63,9 @@ INSERT INTO public.variants (product_id, size, color, stock, sku) VALUES
 -- Insert Variants for Calça Brim Profissional
 INSERT INTO public.variants (product_id, size, color, stock, sku) VALUES
 ('d290f1ee-6c54-4b01-90e6-d701748f0855', '40', 'Cinza', 0, 'CALCA-CZ-40');
+
+-- Insert Users
+INSERT INTO public.users (id, name, email, role, avatar, password) VALUES
+('1', 'Carlos Admin', 'admin@stylos.com', 'ADMIN', 'https://i.pravatar.cc/150?u=1', 'admin123'),
+('2', 'Julia Estoque', 'estoque@stylos.com', 'ESTOQUE', 'https://i.pravatar.cc/150?u=2', 'estoque123'),
+('3', 'Marcos Vendas', 'vendas@stylos.com', 'VENDAS', 'https://i.pravatar.cc/150?u=3', 'vendas123');

@@ -68,8 +68,13 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
       if (expensesData) setExpenses(expensesData as unknown as Expense[]);
 
       // Fetch Users (Simulated Table)
-      const { data: usersData } = await supabase.from('users').select('*');
-      if (usersData) setUsersList(usersData as unknown as User[]);
+      const { data: usersData, error: usersError } = await supabase.from('users').select('*');
+      if (usersError) {
+        console.warn('Could not fetch users from DB (table might be missing). Using mock data.', usersError);
+        setUsersList(USERS);
+      } else if (usersData) {
+        setUsersList(usersData as unknown as User[]);
+      }
 
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -86,19 +91,19 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
     // 1. Check Mock Users first (fallback)
     const mockUser = USERS.find(u => u.email === email);
     if (mockUser) {
+       // Check password if provided (mock users don't have passwords in mockData, so we accept any or specific hardcoded ones if we wanted)
+       // For simplicity, we allow mock users to login easily
        setUser(mockUser);
        localStorage.setItem('stylos_user', JSON.stringify(mockUser));
        return true;
     }
 
     // 2. Check Supabase Users
-    // NOTE: In a real app, use supabase.auth.signInWithPassword
-    // Here we are using a custom 'users' table as requested for simple management
     const { data: foundUsers, error } = await supabase
       .from('users')
       .select('*')
       .eq('email', email)
-      .eq('password', password); // Plain text for prototype simplicity as requested
+      .eq('password', password); 
 
     if (foundUsers && foundUsers.length > 0) {
       const loggedUser = foundUsers[0] as User;
@@ -121,7 +126,11 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
     const { data, error } = await supabase.from('users').insert([userData]);
     if (error) {
       console.error('Error registering user:', error);
-      toast.error('Erro ao cadastrar usuário.');
+      if (error.code === '42P01') {
+        toast.error('Erro: Tabela "users" não existe. Execute o script SQL no Supabase.');
+      } else {
+        toast.error(`Erro ao cadastrar: ${error.message}`);
+      }
       return false;
     }
     await fetchData();
