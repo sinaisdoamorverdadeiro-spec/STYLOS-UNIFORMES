@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, Product, Order, Client, Expense, Role, OrderStatus, StockMovement, MovementType } from '../types';
-import { USERS } from '../mockData';
+import { USERS, PRODUCTS, ORDERS, CLIENTS, EXPENSES } from '../mockData';
 import { supabase } from '../services/supabase';
 import { toast } from 'sonner';
 
@@ -52,19 +52,29 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const { data: productsData } = await supabase.from('products').select('*, variants(*)');
+      // 1. Fetch Products & Variants
+      const { data: productsData, error: prodError } = await supabase.from('products').select('*, variants(*)');
+      if (prodError) throw prodError;
       if (productsData) setProducts(productsData as unknown as Product[]);
 
-      const { data: movementsData } = await supabase.from('stock_movements').select('*').order('date', { ascending: false });
+      // 2. Fetch Stock Movements
+      const { data: movementsData, error: movError } = await supabase.from('stock_movements').select('*').order('date', { ascending: false });
+      if (movError) throw movError;
       if (movementsData) setStockMovements(movementsData as unknown as StockMovement[]);
 
-      const { data: clientsData } = await supabase.from('clients').select('*');
+      // 3. Fetch Clients
+      const { data: clientsData, error: clientError } = await supabase.from('clients').select('*');
+      if (clientError) throw clientError;
       if (clientsData) setClients(clientsData as unknown as Client[]);
 
-      const { data: ordersData } = await supabase.from('orders').select('*');
+      // 4. Fetch Orders
+      const { data: ordersData, error: orderError } = await supabase.from('orders').select('*');
+      if (orderError) throw orderError;
       if (ordersData) setOrders(ordersData as unknown as Order[]);
 
-      const { data: expensesData } = await supabase.from('expenses').select('*');
+      // 5. Fetch Expenses
+      const { data: expensesData, error: expenseError } = await supabase.from('expenses').select('*');
+      if (expenseError) throw expenseError;
       if (expensesData) setExpenses(expensesData as unknown as Expense[]);
 
       // Fetch Users (Simulated Table)
@@ -77,7 +87,14 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
       }
 
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('Error fetching data (Supabase might be down or unconfigured). Using Mock Data.', error);
+      // Fallback to Mock Data for Demo Mode
+      setProducts(PRODUCTS);
+      setOrders(ORDERS);
+      setClients(CLIENTS);
+      setExpenses(EXPENSES);
+      setUsersList(USERS);
+      // Stock movements mock is empty initially or could be added to mockData if needed
     } finally {
       setLoading(false);
     }
@@ -123,25 +140,46 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const registerUser = async (userData: User): Promise<boolean> => {
+    // Try Supabase first
     const { data, error } = await supabase.from('users').insert([userData]);
+    
     if (error) {
-      console.error('Error registering user:', error);
-      if (error.code === '42P01') {
-        toast.error('Erro: Tabela "users" não existe. Execute o script SQL no Supabase.');
+      console.error('Error registering user (Supabase):', error);
+      
+      // Check for "table not found" error (Postgres 42P01 or specific message)
+      if (error.code === '42P01' || error.message.includes('Could not find the table')) {
+        // Fallback to Local State
+        setUsersList(prev => [...prev, userData]);
+        toast.success('Usuário salvo localmente (Tabela não criada no banco)');
+        return true;
       } else {
         toast.error(`Erro ao cadastrar: ${error.message}`);
+        return false;
       }
-      return false;
     }
+
+    // If successful, refresh data
     await fetchData();
     toast.success('Usuário cadastrado com sucesso!');
     return true;
   };
 
   const deleteUser = async (id: string) => {
-    await supabase.from('users').delete().eq('id', id);
-    await fetchData();
-    toast.success('Usuário removido.');
+    const { error } = await supabase.from('users').delete().eq('id', id);
+    
+    if (error) {
+        console.error('Error deleting user (Supabase):', error);
+        // Fallback local delete if table missing
+        if (error.code === '42P01' || error.message.includes('Could not find the table')) {
+            setUsersList(prev => prev.filter(u => u.id !== id));
+            toast.success('Usuário removido (Localmente)');
+            return;
+        }
+        toast.error('Erro ao remover usuário');
+    } else {
+        await fetchData();
+        toast.success('Usuário removido.');
+    }
   };
 
   const addProduct = async (p: Product) => {
